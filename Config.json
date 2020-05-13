@@ -1,0 +1,19 @@
+{
+    "Config": {
+        "HttpServerPort": 7896,
+        "RootFolder": "G:\\Videos",
+
+        "NVEncCPath3": "C:\\#app\\tv\\#enc\\NVEnc_5.01\\NVEncC\\x64\\NVEncC64.exe",
+        "hlsParam3": " --avhw -i \"<input>\" -o \"<segmentFolder>\\a.m3u8\" -f hls -m hls_time:5 -m hls_list_size:0 -m hls_segment_filename:\"<segmentFolder>\\segment_%08d.ts\" <DeinterlaceParam> --gop-len 30 --audio-codec aac --audio-samplerate 48000 --audio-bitrate 192 --avsync forcecfr",
+        "extra_DeinterlaceParam3": " --interlace tff --vpp-deinterlace normal ",
+
+        "NVEncCPath": "C:\\Programing\\VideoConvertStreamServer\\x64\\Debug\\ffmpeg-master\\ffmpeg-master\\ffmpeg\\Windows\\x86_64\\bin\\ffmpeg.exe",
+        "hlsParam": " -i \"<input>\" -map 0:v -map 0:a -c:v libopenh264 -b 5000000 -g 30 <DeinterlaceParam> -c:a aac -b:a 192k -f hls -hls_time 5 -hls_list_size 0 -hls_segment_filename \"<segmentFolder>\\segment_%08d.ts\" \"<segmentFolder>\\a.m3u8\"",
+
+        "NVEncCPath4": "C:\\Programing\\VideoConvertStreamServer\\x64\\Debug\\ffmpeg.exe",
+        "NVEncCPath2": "C:\\#app\\tv\\#enc\\ffmpeg-20200504-5767a2e-win64-static\\bin\\ffmpeg.exe" ,
+        "hlsParam2": " -i \"<input>\" -map 0:v -map 0:a -c:v libx264 -preset veryfast -crf 23  -keyint_min 30 -g 30 <DeinterlaceParam> -c:a aac -b:a 192k -f hls -hls_time 5 -hls_list_size 0 -hls_segment_filename \"<segmentFolder>\\segment_%08d.ts\" \"<segmentFolder>\\a.m3u8\"",
+        "extra_DeinterlaceParam": " -vf yadif",
+        "MaxCacheFolderCount": 2
+    }
+}
