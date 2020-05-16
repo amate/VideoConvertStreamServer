@@ -46,6 +46,10 @@ var QueryPrepareHLS = function()
     $.getJSON("/PrepareHLSAPI", queryPlay)
     .done(function(json){
         var video = document.getElementById('video');
+        if (json.Status != "ok") {
+            alert('エラーが発生しました');
+            return ;
+        }
         if (json.DirectPlay) {
             $('#FileName').prepend('<span class="badge badge-info">direct</span> ');
 
@@ -100,3 +104,59 @@ $('#PlayButton').on('click', function() {
     $('#PlayButton').hide();
     QueryPrepareHLS();
 });
+
+/*  // 封印
+$(function() {
+
+    $('#FileName').on('click', () => {
+        var videoC = document.getElementById('video-container')
+        videoC.requestFullscreen();
+    });
+    console.log('test');
+
+    $('#SwipeSeekArea').on('touchstart', onTouchStart); //指が触れたか検知
+    $('#SwipeSeekArea').on('touchmove', onTouchMove); //指が動いたか検知
+    $('#SwipeSeekArea').on('touchend', onTouchEnd); //指が離れたか検知
+    var direction, position;
+
+    var lastTouchXPos;
+    var thresholdXDistance = 5;
+  
+    //スワイプ開始時の横方向の座標を格納
+    function onTouchStart(event) {
+      console.log('touchstart2');
+      lastTouchXPos = getPosition(event);
+      video.pause();
+      direction = ''; //一度リセットする
+    }
+  
+    //スワイプの方向（left／right）を取得
+    function onTouchMove(event) {
+        let currentXPos = getPosition(event);
+        console.log('currentXPos: ' + currentXPos);
+        if (lastTouchXPos - currentXPos > thresholdXDistance) { 
+            // 左スワイプ
+            video.currentTime -= 1.0;
+            lastTouchXPos = currentXPos;
+            console.log("-1.0");
+
+        } else if (lastTouchXPos - currentXPos < -thresholdXDistance) {
+            // 右スワイプ
+            video.currentTime += 1.0;
+            lastTouchXPos = currentXPos;
+            console.log("+1.0");
+        }
+    }
+  
+    function onTouchEnd(event) {
+      console.log("touch end");
+      video.play();
+    }
+  
+    //横方向の座標を取得
+    function getPosition(event) {
+      return event.originalEvent.touches[0].pageX;
+    }
+  });
+
+  */

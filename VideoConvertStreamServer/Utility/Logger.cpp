@@ -14,6 +14,24 @@ namespace sinks = boost::log::sinks;
 namespace keywords = boost::log::keywords;
 namespace logging = boost::log;
 
+class app_launcher :
+	public sinks::basic_formatted_sink_backend<
+	char,                   /*< target character type >*/
+	sinks::synchronized_feeding     /*< in order not to spawn too many application instances we require records to be processed serial >*/
+	>
+{
+public:
+	// The function consumes the log records that come from the frontend
+	void consume(logging::record_view const& rec, string_type const& command_line);
+};
+
+// The function consumes the log records that come from the frontend
+void app_launcher::consume(logging::record_view const& rec, string_type const& command_line)
+{
+	//std::system(command_line.c_str());
+}
+
+
 //Defines a global logger initialization routine
 BOOST_LOG_GLOBAL_LOGGER_INIT(my_logger, logger_t)
 {
@@ -52,6 +70,22 @@ BOOST_LOG_GLOBAL_LOGGER_INIT(my_logger, logger_t)
 		% expr::message);
 
 	core->add_sink(sink_ostream);
+#endif   
+
+#if 0
+	{
+		typedef sinks::synchronous_sink< app_launcher > sink_t;
+		boost::shared_ptr< sink_t > sink(new sink_t());
+
+		sink->set_formatter(
+			expr::format("%1% [%2%]: %3%")
+			% expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y-%m-%d %H:%M:%S")
+			% logging::trivial::severity
+			% expr::wmessage);
+
+		core->add_sink(sink);
+		sink->imbue(std::locale(std::locale(), new std::codecvt_utf8_utf16<wchar_t>));
+	}
 #endif
 
 	// ログのファイル出力を設定

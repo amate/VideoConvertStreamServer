@@ -22,6 +22,7 @@
 #include "Utility\json.hpp"
 #include "Utility\CodeConvert.h"
 #include "Config.h"
+#include "MainDlg.h"
 
 namespace asio = boost::asio;
 using boost::wformat;
@@ -37,6 +38,8 @@ namespace {
 		{".html", "text/html"},
 		{".js", "text/javascript"},
 		{".css", "text/css"},
+		{".txt", "text/plain"},
+		{".log", "text/plain"},
 
 		{".m3u8", "application/x-mpegURL"},
 		{".ts", "video/mp2t"},
@@ -54,6 +57,8 @@ namespace {
 	const std::string kDirectPlayMediaExt[] = {
 		".mp4", ".webm"
 	};
+
+	std::list<std::wstring> g_playHistory;
 
 	std::string	URLDecode(const std::string& src)
 	{
@@ -104,9 +109,9 @@ namespace {
 	bool	isMediaFile(const fs::path& filePath)
 	{
 		if (fs::is_regular_file(filePath)) {
-			auto ext = filePath.extension().string();
+			auto ext = filePath.extension().wstring().substr(1);
 			boost::to_lower(ext);
-			for (const auto& mediaExt : kMediaExt) {
+			for (const auto& mediaExt : Config::s_mediaExtList) {
 				if (ext == mediaExt) {
 					return true;
 				}
@@ -117,9 +122,9 @@ namespace {
 
 	bool	isDirectPlayFile(const fs::path& filePath)
 	{
-		auto ext = filePath.extension().string();
+		auto ext = filePath.extension().wstring().substr(1);
 		boost::to_lower(ext);
-		for (const auto& mediaExt : kDirectPlayMediaExt) {
+		for (const auto& mediaExt : Config::s_directPlayMediaExtList) {
 			if (ext == mediaExt) {
 				return true;
 			}
@@ -129,12 +134,13 @@ namespace {
 
 	fs::path BuildWokringFolderPath(const fs::path& actualMediaPath)
 	{
+		const auto canonicalPath = fs::path(actualMediaPath).make_preferred();
 		enum { kMaxTitleCount = 32 };
 		std::hash<std::wstring> strhash;
 		wchar_t workingFolderName[128] = L"";	// 最大でも "32 + 1 + 16 = 49" なので大丈夫
-		const std::wstring shortFileName = actualMediaPath.stem().wstring().substr(0, kMaxTitleCount);
+		const std::wstring shortFileName = canonicalPath.stem().wstring().substr(0, kMaxTitleCount);
 		//swprintf_s(workingFolderName, L"%s_%zx", shortFileName.c_str(), strhash(actualMediaPath.wstring()));
-		swprintf_s(workingFolderName, L"%zx", strhash(actualMediaPath.wstring()));
+		swprintf_s(workingFolderName, L"%zx", strhash(canonicalPath.wstring()));
 		//std::wstring workingFolderName = io::str(wformat(L"%llx_working") % strhash(tsFileBaseName));
 		fs::path segmentFolderPath = GetExeDirectory() / L"html" / L"stream" / workingFolderName;
 		return segmentFolderPath.make_preferred();
@@ -195,7 +201,7 @@ namespace {
 
 	// ================================================
 
-	int ToggleMute()
+	bool ToggleMute()
 	{
 		HRESULT hr;
 		IMMDeviceEnumerator* pEnum = NULL;
@@ -207,7 +213,7 @@ namespace {
 		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, IID_PPV_ARGS(&pEnum));
 		if (FAILED(hr)) {
 			CoUninitialize();
-			return 1;
+			return false;
 		}
 		// 既定のマルチメディア出力デバイスを取得
 		hr = pEnum->GetDefaultAudioEndpoint(eRender, eConsole, &pEndpoint);
@@ -215,7 +221,7 @@ namespace {
 			if (pEnum)
 				pEnum->Release();
 			CoUninitialize();
-			return 2;
+			return false;
 		}
 		// ボリュームオブジェクトを作成
 		hr = pEndpoint->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_ALL, NULL, (void**)&pAudioEndVol);
@@ -225,7 +231,7 @@ namespace {
 			if (pEnum)
 				pEnum->Release();
 			CoUninitialize();
-			return 3;
+			return false;
 		}
 
 		// ミュートトグル
@@ -242,7 +248,7 @@ namespace {
 			pEnum->Release();
 		CoUninitialize();
 
-		return 0;
+		return bMute != 0;
 	}
 
 	int StepVolumeChange(bool bVolumeUp)
@@ -280,14 +286,14 @@ namespace {
 		float volLevel;
 		hr = pAudioEndVol->GetMasterVolumeLevelScalar(&volLevel);
 		if (bVolumeUp) {
-			volLevel += 0.1;
+			volLevel += 0.1f;
 			if (volLevel > 1.0) {
-				volLevel = 1.0;
+				volLevel = 1.0f;
 			}
 		} else {
-			volLevel -= 0.1;
-			if (volLevel < 0) {
-				volLevel = 0.0;
+			volLevel -= 0.1f;
+			if (volLevel < 0.0) {
+				volLevel = 0.0f;
 			}
 		}
 		hr = pAudioEndVol->SetMasterVolumeLevelScalar(volLevel, NULL);
@@ -309,7 +315,8 @@ namespace {
 			pEnum->Release();
 		CoUninitialize();
 
-		return 0;
+		int currentVolume = static_cast<int>(volLevel * 100);
+		return currentVolume;
 	}
 
 	void SendJSON200OK(const std::string& jsonData, asio::yield_context& yield, tcp::socket& s)
@@ -345,6 +352,9 @@ namespace {
 			return;
 		}
 		std::string contentType = GetFileContentType(filePath);
+		if (contentType == "text/plain") {
+			contentType += "; charset=utf-8";
+		}
 
 		std::stringstream	ss;
 		ss << "HTTP/1.1 200 OK\r\n"
@@ -528,9 +538,13 @@ namespace {
 
 	void PrepareHLSAPI(const std::wstring& mediaPath, asio::yield_context& yield, tcp::socket& s)
 	{
+		g_playHistory.erase(std::remove(g_playHistory.begin(), g_playHistory.end(), mediaPath), g_playHistory.end());
+		g_playHistory.emplace_front(mediaPath);
+
 		if (isDirectPlayFile(mediaPath)) {
 			auto playListURL = boost::replace_all_copy(mediaPath, L"#", L"<hash>");
 			json jsonResponse;
+			jsonResponse["Status"] = "ok";
 			jsonResponse["DirectPlay"] = true;
 			jsonResponse["playListURL"] = "/RawLoadAPI?path=" + ConvertUTF8fromUTF16(playListURL);
 			SendJSON200OK(jsonResponse.dump(), yield, s);
@@ -562,18 +576,6 @@ namespace {
 		const fs::path rootFolder = Config::s_rootFolder;//LR"(G:\Videos)";
 		const fs::path actualMediaPath = (rootFolder / mediaPath).make_preferred();
 
-		const fs::path hlsPath = Config::s_NVEncCPath;//LR"(C:\#app\tv\#enc\NVEnc_5.01\NVEncC\x64\NVEncC64.exe)";
-		std::wstring hlsParam = Config::s_hlsParam;
-
-		std::string ext = boost::to_lower_copy(actualMediaPath.extension().string());
-		if (ext == ".ts") {	// .ts ファイルは、デインターレース用のパラメーターを追加する
-			boost::replace_all(hlsParam, L"<DeinterlaceParam>", Config::s_extra_DeinterlaceParam);
-		} else {
-			boost::replace_all(hlsParam, L"<DeinterlaceParam>", L"");
-		}
-			//LR"( --avhw -i "<input>" -o "<segmentFolder>\a.m3u8" -f hls -m hls_time:5 -m hls_list_size:0 -m hls_segment_filename:"<segmentFolder>\segment_%08d.ts" --gop-len 30 --interlace tff --vpp-deinterlace normal --audio-codec aac --audio-samplerate 48000 --audio-bitrate 192)";
-		boost::replace_all(hlsParam, L"<input>", actualMediaPath.wstring().c_str());
-
 		// 作業フォルダ作成
 		const fs::path segmentFolderPath = BuildWokringFolderPath(actualMediaPath);
 		if (!fs::is_directory(segmentFolderPath)) {
@@ -581,31 +583,44 @@ namespace {
 				THROWEXCEPTION(L"create_directory(segmentFolderPath) failed");
 			}
 		}
-		const fs::path playListPath = segmentFolderPath / L"a.m3u8";
-		if (!fs::exists(playListPath)) {	
-			// プレイリストファイルが存在しなければセグメントファイルはまだ未生成
-			boost::replace_all(hlsParam, L"<segmentFolder>", segmentFolderPath.wstring().c_str());
-			std::thread([=]() {
-				// エンコーダー起動！
-				StartProcess(hlsPath, hlsParam);
-			}).detach();
 
-			enum {
-				kMaxRetryCount = 5
-			};
-			int retryCount = 0;
-			while (!fs::exists(playListPath)) {
-				++retryCount;
-				if (kMaxRetryCount < retryCount) {
-					ERROR_LOG << L"エンコードに失敗？ 'a.m3u8' が生成されていません";
-					break;	// failed
+		const fs::path playListPath = segmentFolderPath / L"a.m3u8";		
+		if (!fs::exists(playListPath)) {	// プレイリストファイルが存在しなければセグメントファイルはまだ未生成
+			auto enginePath = Config::GetEnginePath();
+			if (!fs::exists(enginePath)) {
+				ERROR_LOG << L"enginePath に実行ファイルが存在しません: " << enginePath.wstring();
+
+				json jsonResponse;
+				jsonResponse["Status"] = "failed";
+				SendJSON200OK(jsonResponse.dump(), yield, s);
+				return;
+			} else {
+				std::wstring commandLine = Config::BuildVCEngineCommandLine(actualMediaPath, segmentFolderPath);
+				std::thread([=]() {
+					// エンコーダー起動
+					UpdateVideoConvertCount(true);
+					StartProcess(enginePath, commandLine);
+					UpdateVideoConvertCount(false);
+				}).detach();
+
+				enum {
+					kMaxRetryCount = 5
+				};
+				int retryCount = 0;
+				while (!fs::exists(playListPath)) {
+					++retryCount;
+					if (kMaxRetryCount < retryCount) {
+						ERROR_LOG << L"エンコードに失敗？ 'a.m3u8' が生成されていません";
+						break;	// failed
+					}
+					::Sleep(1000);
 				}
-				::Sleep(1000);
 			}
 		}
 		std::string playListURL = "/stream/";
 		playListURL += ConvertUTF8fromUTF16(segmentFolderPath.filename().wstring()) + "/a.m3u8";
 		json jsonResponse;
+		jsonResponse["Status"] = "ok";
 		jsonResponse["DirectPlay"] = false;
 		jsonResponse["playListURL"] = playListURL;
 		SendJSON200OK(jsonResponse.dump(), yield, s);		
@@ -637,6 +652,44 @@ namespace {
 		SendJSON200OK(jsonResponse.dump(), yield, s);
 	}
 
+	void PlayHistoryAPI(asio::yield_context& yield, tcp::socket& s)
+	{
+		json jsonPlayHistory = json::array();
+		for (const auto& playHisotory : g_playHistory) {
+			jsonPlayHistory.push_back(ConvertUTF8fromUTF16(playHisotory));
+		}
+		json jsonResponse;
+		jsonResponse["PlayHistory"] = jsonPlayHistory;
+		SendJSON200OK(jsonResponse.dump(), yield, s);
+	}
+
+	void VolumeAPI(const std::string& operation, asio::yield_context& yield, tcp::socket& s)
+	{
+		json jsonResponse;
+		jsonResponse["Operation"] = operation;
+		if (operation == "toggle_mute") {
+			bool bMute = ToggleMute();
+
+			jsonResponse["NowMute"] = bMute;
+			SendJSON200OK(jsonResponse.dump(), yield, s);
+
+		} else if (operation == "volume_up" || operation == "volume_down") {
+			bool bVolumeUp = operation == "volume_up";
+			int currentVolume = StepVolumeChange(bVolumeUp);
+
+			jsonResponse["CurrentVlume"] = currentVolume;
+			SendJSON200OK(jsonResponse.dump(), yield, s);
+		}
+	}
+
+	void PrevSleepAPI(asio::yield_context& yield, tcp::socket& s)
+	{
+		::SetThreadExecutionState(ES_SYSTEM_REQUIRED);
+		json jsonResponse;
+		jsonResponse["Status"] = "ok";
+		SendJSON200OK(jsonResponse.dump(), yield, s);
+	}
+
 }	// namespace 
 
 std::shared_ptr<HttpServer> HttpServer::RunHttpServer()
@@ -651,9 +704,10 @@ void HttpServer::StopHttpServer()
 	m_serverThread.join();
 }
 
-void connection_rountine(asio::yield_context& yield, tcp::socket s, std::function<void(int, std::wstring)> funcCallback)
+void connection_rountine(asio::yield_context& yield, tcp::socket s)
 {
 	ATLTRACE("enter connection_rountine\n");
+	UpdateRequestCount(true);
 
 	static const fs::path htmlFolderPath = GetExeDirectory() / L"html";
 
@@ -748,53 +802,31 @@ void connection_rountine(asio::yield_context& yield, tcp::socket s, std::functio
 						RawLoadAPI(mediaPath, optRange, yield, s);
 					}
 					break;
+				// ====================================================
+				// /index.html
+				} else if (path == "/PlayHistoryAPI") {
+					PlayHistoryAPI(yield, s);
+					break;
+				} else if (path.substr(0, 10) == "/VolumeAPI") {
+					auto queryData = path.substr(10);
+					std::regex rx(R"(\?operation=(.*))");
+					std::smatch result;
+					if (std::regex_match(queryData, result, rx)) {
+						std::string operation = result[1].str();
+						VolumeAPI(operation, yield, s);
+					}
+					break;
+				} else if (path == "/PrevSleepAPI") {
+					PrevSleepAPI(yield, s);
+					break;
 				}
 
+				// =====================================================
+				// htmlフォルダ以下の その他ファイルへのリクエスト
 				auto actualPath = htmlFolderPath / path.substr(1);
 				if (fs::is_regular_file(actualPath)) {
 					SendFile200OK(actualPath, yield, s);
 					break;
-				}
-	
-				
-				if (path == "/prev_sleep") {
-					int state = 0;
-					std::wstring msg;
-					funcCallback(state, msg);
-
-					// レスポンス送信
-					asio::async_write(s, asio::buffer("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"), yield[ec]);
-					if (ec) break;
-					asio::async_write(s, asio::buffer("prev_seep ok"), yield[ec]);
-					if (ec) break;
-
-					s.close();
-					break;
-				} else if (path == "/toggle_mute") {
-					ToggleMute();
-
-					// レスポンス送信
-					asio::async_write(s, asio::buffer("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"), yield[ec]);
-					if (ec) break;
-					asio::async_write(s, asio::buffer("toggle_mute ok"), yield[ec]);
-					if (ec) break;
-
-					s.close();
-					break;
-				} else if (path == "/VolumeUp" || path == "/VolumeDown") {
-					bool bVolumeUp = path == "/VolumeUp";
-					StepVolumeChange(bVolumeUp);
-
-					// レスポンス送信
-					asio::async_write(s, asio::buffer("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"), yield[ec]);
-					if (ec) break;
-					asio::async_write(s, asio::buffer("volume change ok"), yield[ec]);
-					if (ec) break;
-
-					s.close();
-					break;
-
-
 				}
 			}
 
@@ -831,6 +863,7 @@ void connection_rountine(asio::yield_context& yield, tcp::socket s, std::functio
 		ERROR_LOG << L"connection_rountine - exception throw: " << UTF16fromShiftJIS(e.what());
 	}
 
+	UpdateRequestCount(false);
 	ATLTRACE("leave connection_rountine\n");
 }
 
@@ -846,7 +879,7 @@ HttpServer::HttpServer()
 				acceptor.async_accept(socket, yield);
 
 				asio::spawn(m_ioService, [&](asio::yield_context yc) {
-					connection_rountine(yc, std::move(socket), m_funcCallback);
+					connection_rountine(yc, std::move(socket));
 				});
 			}
 		});

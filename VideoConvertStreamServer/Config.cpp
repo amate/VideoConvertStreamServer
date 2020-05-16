@@ -3,6 +3,8 @@
 #include "Config.h"
 #include <fstream>
 
+#include <boost\format.hpp>
+
 #include "Utility\CommonUtility.h"
 #include "Utility\json.hpp"
 #include "Utility\Logger.h"
@@ -14,10 +16,22 @@ using namespace CodeConvert;
 
 int			Config::s_httpServerPort = 7896;
 std::wstring Config::s_rootFolder;
-std::wstring Config::s_NVEncCPath;
-std::wstring Config::s_hlsParam;
-std::wstring Config::s_extra_DeinterlaceParam;
+std::vector<std::wstring> Config::s_mediaExtList = {
+	L"ts", L"mp4", L"mkv", L"webm", L"mpeg", L"avi", L"flv", L"wmv", L"asf", L"mov",
+};
+std::vector<std::wstring> Config::s_directPlayMediaExtList = {
+	L"mp4", L"webm"
+};
+
 int			Config::s_maxCacheFolderCount = 2;
+
+std::array<std::wstring, Config::kMaxEngineNum> Config::s_videoConvertEngineName = {
+	L"内蔵 FFmpeg", L"外部 FFmpeg", L"NVEncC",
+};
+int			 Config::s_videoConvertEngine = Config::kBuiltinFFmpeg;
+std::array<Config::VideoConvertEngineInfo, Config::kMaxEngineNum> Config::s_arrVideoConvertEngineInfo;
+
+/////////////////////////////////////////////////////////////////
 
 void Config::LoadConfig()
 {
@@ -31,14 +45,126 @@ void Config::LoadConfig()
 	fs >> jsonConfig;
 	auto& configRoot = jsonConfig["Config"];
 
-	s_httpServerPort = configRoot["HttpServerPort"].get<int>();
+	s_httpServerPort = configRoot.value<int>("HttpServerPort", s_httpServerPort);
+	s_rootFolder = ConvertUTF16fromUTF8(configRoot.value<std::string>("RootFolder", ""));
 
-	s_rootFolder = ConvertUTF16fromUTF8(configRoot["RootFolder"].get<std::string>());
-	s_NVEncCPath = ConvertUTF16fromUTF8(configRoot["NVEncCPath"].get<std::string>());
-	s_hlsParam = ConvertUTF16fromUTF8(configRoot["hlsParam"].get<std::string>());
-	s_extra_DeinterlaceParam = ConvertUTF16fromUTF8(configRoot["extra_DeinterlaceParam"].get<std::string>());
-	s_maxCacheFolderCount = configRoot["MaxCacheFolderCount"].get<int>();
+	auto& jsonMediaExtList = configRoot["MediaExtList"];
+	if (jsonMediaExtList.is_array()) {
+		s_mediaExtList.clear();
+		for (auto& mediaExt : jsonMediaExtList) {
+			s_mediaExtList.emplace_back(ConvertUTF16fromUTF8(mediaExt.get<std::string>()));
+		}
+	}
+	auto& jsonDirectPlayMediaExtList = configRoot["DirectPlayMediaExtList"];
+	if (jsonDirectPlayMediaExtList.is_array()) {
+		s_directPlayMediaExtList.clear();
+		for (auto& mediaExt : jsonDirectPlayMediaExtList) {
+			s_directPlayMediaExtList.emplace_back(ConvertUTF16fromUTF8(mediaExt.get<std::string>()));
+		}
+	}
+
+	s_maxCacheFolderCount = configRoot.value<int>("MaxCacheFolderCount", s_maxCacheFolderCount);
 	if (s_maxCacheFolderCount < 0) {
 		s_maxCacheFolderCount = 1;
 	}
+	s_videoConvertEngine = configRoot.value<int>("VideoConvertEngine", s_videoConvertEngine);
+
+	for (int i = 0; i < kMaxEngineNum; ++i) {
+		std::string name = (boost::format("VideoConvertEngine%1%") %  i).str();
+		auto& jsonVCE = configRoot[name];
+		if (jsonVCE.is_object()) {
+			auto& VCEInfo = s_arrVideoConvertEngineInfo[i];
+			if (i == kBuiltinFFmpeg) {
+				VCEInfo.enginePath = (GetExeDirectory() / L"ffmpeg" / L"ffmpeg.exe").wstring();
+			} else {
+				VCEInfo.enginePath = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("EnginePath", ""));
+			}
+			VCEInfo.defaultCommandLine = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("DefaultCommandLine", ""));
+			VCEInfo.commandLine = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("CommandLine", ""));
+			if (VCEInfo.commandLine.empty()) {
+				VCEInfo.commandLine = VCEInfo.defaultCommandLine;
+			}
+			VCEInfo.deinterlaceParam = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("DeinterlaceParam", "<default>"));
+			if (VCEInfo.deinterlaceParam == L"<default>") {
+				VCEInfo.deinterlaceParam = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("DefaultDeinterlaceParam", ""));
+			}
+		}
+	}
+}
+
+void Config::SaveConfig()
+{
+	json jsonConfig;
+
+	auto configPath = GetExeDirectory() / L"Config.json";
+	std::ifstream fs(configPath.c_str(), std::ios::in | std::ios::binary);
+	if (fs) {
+		fs >> jsonConfig;
+		fs.close();
+	} else {
+
+	}
+	auto& configRoot = jsonConfig["Config"];
+
+	configRoot["HttpServerPort"] = s_httpServerPort;
+	configRoot["RootFolder"] = ConvertUTF8fromUTF16(s_rootFolder);
+
+	configRoot["MediaExtList"] = json::array();
+	auto& jsonMediaExtList = configRoot["MediaExtList"];
+	for (const auto& mediaExt : s_mediaExtList) {
+		jsonMediaExtList.push_back(ConvertUTF8fromUTF16(mediaExt));
+	}
+
+	configRoot["DirectPlayMediaExtList"] = json::array();
+	auto& jsonDirectPlayMediaExtList = configRoot["DirectPlayMediaExtList"];
+	for (const auto& mediaExt : s_directPlayMediaExtList) {
+		jsonDirectPlayMediaExtList.push_back(ConvertUTF8fromUTF16(mediaExt));
+	}
+
+	configRoot["MaxCacheFolderCount"] = s_maxCacheFolderCount;
+	configRoot["VideoConvertEngine"] = s_videoConvertEngine;
+	for (int i = 0; i < kMaxEngineNum; ++i) {
+		std::string name = (boost::format("VideoConvertEngine%1%") % i).str();
+		auto& jsonVCE = configRoot[name];
+		const auto& VCEInfo = s_arrVideoConvertEngineInfo[i];
+		if (i != kBuiltinFFmpeg) {
+			jsonVCE["EnginePath"] = ConvertUTF8fromUTF16(VCEInfo.enginePath);
+		}
+		jsonVCE["CommandLine"] = ConvertUTF8fromUTF16(VCEInfo.commandLine);
+		jsonVCE["DeinterlaceParam"] = ConvertUTF8fromUTF16(VCEInfo.deinterlaceParam);
+	}
+
+	std::ofstream fsw(configPath.c_str(), std::ios::out | std::ios::binary);
+	fsw << std::setw(4) <<  jsonConfig;
+	fsw.close();
+}
+
+boost::filesystem::path Config::GetEnginePath()
+{
+	const auto& VCEInfo = s_arrVideoConvertEngineInfo[s_videoConvertEngine];	
+	return VCEInfo.enginePath;
+}
+
+std::wstring Config::BuildVCEngineCommandLine(const boost::filesystem::path& mediaPath,
+											  const boost::filesystem::path& segmentFolderPath)
+{
+	const fs::path actualMediaPath = boost::filesystem::path(mediaPath).make_preferred();
+
+	const auto& VCEInfo = s_arrVideoConvertEngineInfo[s_videoConvertEngine];
+	std::wstring commandLine = VCEInfo.commandLine;
+	boost::replace_all(commandLine, L"\\n", L" ");
+
+	boost::replace_all(commandLine, L"<input>", actualMediaPath.wstring().c_str());
+
+	std::string ext = boost::to_lower_copy(actualMediaPath.extension().string());
+	if (ext == ".ts") {	// .ts ファイルは、デインターレース用のパラメーターを追加する
+		boost::replace_all(commandLine, L"<DeinterlaceParam>", VCEInfo.deinterlaceParam);
+	} else {
+		boost::replace_all(commandLine, L"<DeinterlaceParam>", L"");
+	}
+
+	boost::replace_all(commandLine, L"<segmentFolder>", 
+		boost::filesystem::path(segmentFolderPath).make_preferred().wstring().c_str());
+
+	return commandLine;
 }

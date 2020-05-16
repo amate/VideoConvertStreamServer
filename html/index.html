@@ -19,10 +19,20 @@
 
     <link rel="icon" type="image/png" href="favicon.png"/>
     <title>VideoConvertStreamServer</title>
+
+    <style>
+      #toast_notify 
+      {
+        position: absolute;
+        z-index: 10;
+        background-color: white;
+
+        margin-top: 5px;
+      }
+
+    </style>
   </head>
   <body>
-
-<script src="/content.js"></script>
 
 <div class="container">
 <br>
@@ -38,64 +48,57 @@
 
       <hr>
 
-<button type="button" class="btn btn-action  btn-info" id="prev_sleep">Sleep抑止</button>
-<br>
-<br>
-
-<div class="alert alert-dark" role="alert">Volume: 
-<div class="btn-group" role="group" aria-label="Basic example">
-    <button type="button" class="btn btn-secondary" id="VolumeUp"><i class="fa fa-volume-up" aria-hidden="true"></i>
+<div class="alert alert-dark clearfix" role="alert" style="position: relative;"><span class="align-middle">PC Volume:&nbsp;</span>
+<div class="btn-group" role="group" aria-label="Basic example" style="position: static;">
+    <button type="button" class="btn btn-secondary btn-sm" id="volume_up" ><i class="fa fa-volume-up" aria-hidden="true"></i>
       Up</button>
-    <button type="button" class="btn btn-secondary" id="VolumeDown"><i class="fa fa-volume-down" aria-hidden="true"></i>
+    <button type="button" class="btn btn-secondary btn-sm" id="volume_down"><i class="fa fa-volume-down" aria-hidden="true"></i>
       Down</button>
 </div>
+&nbsp;
+<button type="button" class="btn btn-action  btn-success btn-sm" id="toggle_mute"><i class="fa fa-toggle-on" aria-hidden="true"></i>
+  toggle Mute</button>
 
-<button type="button" class="btn btn-action  btn-success" id="toggle_mute"><i class="fa fa-toggle-on" aria-hidden="true"></i>
-  ミュート切り替え</button>
-
-</div>
-
-    </div>
-</div>
-
-<hr>
-
+  <hr style="margin: 0.5rem;">
+  <button type="button" class="btn btn-action btn-info btn-sm float-right" id="prev_sleep">Sleep抑止</button>
 
 <!-- toast -->
 <!-- Flexbox container for aligning the toasts -->
-<div class="toast" id="toast_notify" data-delay="3000" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="toast-header">
-      <svg class="bd-placeholder-img rounded mr-2" width="20" height="20" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" focusable="false" role="img" ><rect fill="#007aff" width="100%" height="100%"/></svg>
-      <strong class="mr-auto">title</strong>
-      <small><!--11 mins ago--></small>
-      <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
-        <span aria-hidden="true">&times;</span>
-      </button>
-    </div>
-    <div class="toast-body">
-      成功しました！
-    </div>
+<div class="toast" id="toast_notify" data-delay="1500" data-autohide="false" role="alert" aria-live="assertive" aria-atomic="true">
+  <div class="toast-header">      
+    <strong class="mr-auto" id="toast_title">title</strong>
+    <small><!--11 mins ago--></small>
+    <!-- <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+    </button> -->
+  </div>
+  <!-- <div class="toast-body" id="toast_body">
+    toastbody
+  </div> -->
 </div>
 
-<!-- Modal -->
-<div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalLabel">Modal title</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          成功しました！
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        </div>
-      </div>
-    </div>
+</div>
+<hr>
   </div>
+
+  <table class="table table-sm" id="PlayHisotryTable">
+    <thead class="thead-light">
+      <tr>
+        <th style="width: 1em">#</th>
+        <th style="position: relative;">再生履歴</th>
+      </tr>
+    </thead>
+  
+  </table>
+  <hr>
+
+  <p class="text-right">
+   <a class="text-right" href="/test.log">log</a>
+  </p>
+
+</div> <!-- panel panel-danger -->
+
+<script src="/index.js"></script>
 
 </div>
 </body>

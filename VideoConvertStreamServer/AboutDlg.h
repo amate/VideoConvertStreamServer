@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "AppInfomation.h"
+
 class CAboutDlg : public CDialogImpl<CAboutDlg>
 {
 public:
@@ -23,6 +25,11 @@ public:
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
 		CenterWindow(GetParent());
+
+		CString appInfo;
+		appInfo.Format(L"%s - %s", kAppName, kAppVersion);
+		GetDlgItem(IDC_STATIC_APP).SetWindowText(appInfo);
+
 		return TRUE;
 	}
 

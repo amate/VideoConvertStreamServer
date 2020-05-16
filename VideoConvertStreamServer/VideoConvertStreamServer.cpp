@@ -3,13 +3,6 @@
 
 #include "stdafx.h"
 
-#include <atlframe.h>
-#include <atlctrls.h>
-#include <atldlgs.h>
-
-#include "resource.h"
-
-#include "aboutdlg.h"
 #include "MainDlg.h"
 
 #include "Utility\CommonUtility.h"
@@ -20,7 +13,7 @@ CAppModule _Module;
 
 std::string	LogFileName()
 {
-	return (GetExeDirectory() / L"test.log").string();
+	return (GetExeDirectory() / L"html" / L"test.log").string();
 }
 
 int Run(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
@@ -36,7 +29,7 @@ int Run(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 		return 0;
 	}
 
-	dlgMain.ShowWindow(nCmdShow);
+	//dlgMain.ShowWindow(nCmdShow);
 
 	int nRet = theLoop.Run();
 
