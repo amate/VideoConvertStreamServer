@@ -61,6 +61,11 @@ let queryTree = {
 $.getJSON("/filetreeAPI", queryTree)
 .done(function(json){
     $('#LoadingIcon').hide();
+    if (json.Status != 'ok') {
+       $('#ErrorAlart').text(json.Message);
+       $('#ErrorAlart').show();
+        return;
+    }
 
     let FileList = json.FileList;
     for (let i = 0; i < json.FileList.length; ++i) {

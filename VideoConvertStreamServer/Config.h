@@ -11,6 +11,7 @@ struct Config
 	static void SaveConfig();
 
 	static int			s_httpServerPort;
+	static std::string	s_password;
 	static std::wstring s_rootFolder;
 	static std::vector<std::wstring> s_mediaExtList;
 	static std::vector<std::wstring> s_directPlayMediaExtList;

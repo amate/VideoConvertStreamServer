@@ -14,6 +14,7 @@
 
 void	UpdateRequestCount(bool increment);
 void	UpdateVideoConvertCount(bool increment);
+int		CurrentVideoConvertCount();
 
 class CMainDlg : public CDialogImpl<CMainDlg>, public CUpdateUI<CMainDlg>,
 		public CMessageFilter, public CIdleHandler

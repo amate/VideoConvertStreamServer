@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "MainDlg.h"
 #include <fstream>
+#include <atomic>
 #include <iphlpapi.h>
 #include <ip2string.h>
 
@@ -29,8 +30,8 @@ using nlohmann::json;
 
 //
 CWindow	g_hwndMainDlg;
-int		g_activeRequestCount = 0;
-int		g_videoConvertCount = 0;
+std::atomic<int>	g_activeRequestCount = 0;
+std::atomic<int>	g_videoConvertCount = 0;
 
 std::wstring GetLocalIPAddress()
 {
@@ -230,7 +231,11 @@ std::wstring GetLocalIPAddress()
 
 void UpdateRequestCount(bool increment)
 {
-	g_activeRequestCount += increment ? +1 : -1;
+    if (increment) {
+        ++g_activeRequestCount;
+    } else {
+        --g_activeRequestCount;
+    }
 	CString text;
 	text.Format(L"アクティブなリクエスト数: %02d", g_activeRequestCount);
 
@@ -240,12 +245,21 @@ void UpdateRequestCount(bool increment)
 
 void UpdateVideoConvertCount(bool increment)
 {
-	g_videoConvertCount += increment ? +1 : -1;
+    if (increment) {
+        ++g_videoConvertCount;
+    } else {
+        --g_videoConvertCount;
+    }
 	CString text;
 	text.Format(L"動画変換処理中: %02d", g_videoConvertCount);
 
 	CWindow edit = g_hwndMainDlg.GetDlgItem(IDC_STATIC_VIDEOCONVERT);
 	edit.SetWindowTextW(text);	
+}
+
+int		CurrentVideoConvertCount()
+{
+    return g_videoConvertCount;
 }
 
 LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
@@ -394,7 +408,7 @@ LRESULT CMainDlg::OnCancel(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOO
 
 LRESULT CMainDlg::OnOpenLocalServer(WORD, WORD wID, HWND, BOOL&)
 {
-    ::ShellExecute(NULL, L"open", m_localHttpServerAddress, NULL, NULL, SW_NORMAL);
+    ::ShellExecute(NULL, L"open", m_localHttpServerAddress + L"?autoLoginPassword=" + Config::s_password.c_str(), NULL, NULL, SW_NORMAL);
     return LRESULT();
 }
 

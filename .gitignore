@@ -25,4 +25,6 @@ _ReSharper*/
 /x64/
 /.vs/
 /#Release/
+/enc_temp_folder
+/html/stream/*
 

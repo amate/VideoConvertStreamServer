@@ -458,6 +458,14 @@ namespace {
 		std::list<FileItem> fileList;
 		const fs::path rootFolder = Config::s_rootFolder;//LR"(G:\Videos)";
 		const fs::path searchFolder = rootFolder / searchFolderPath;
+		if (!fs::is_directory(searchFolder)) {
+			json jsonFolder;
+			jsonFolder["Status"] = "failed";
+			jsonFolder["Message"] = "searchFolder not exists";
+			SendJSON200OK(jsonFolder.dump(), yield, s);
+			return;
+		}
+
 		for (auto p : fs::directory_iterator(searchFolder)) {
 			bool isFolder = fs::is_directory(p);
 			if (isMediaFile(p) || isFolder) {
@@ -531,8 +539,8 @@ namespace {
 				});
 		}
 		json jsonFolder;
+		jsonFolder["Status"] = "ok";
 		jsonFolder["FileList"] = jsonFileList;
-
 		SendJSON200OK(jsonFolder.dump(), yield, s);
 	}
 
@@ -552,22 +560,24 @@ namespace {
 		}
 
 		try {	// 古いキャッシュフォルダを削除
-			std::vector<std::pair<std::wstring, LONGLONG>> folderList;
-			const fs::path streamFolderPath = GetExeDirectory() / L"html" / L"stream";
-			for (auto p : fs::directory_iterator(streamFolderPath)) {
-				if (fs::is_directory(p)) {
-					LONGLONG createTime = GetFileCreateTime(p);
-					folderList.emplace_back(p.path().wstring(), createTime);
+			if (CurrentVideoConvertCount() == 0) {
+				std::vector<std::pair<std::wstring, LONGLONG>> folderList;
+				const fs::path streamFolderPath = GetExeDirectory() / L"html" / L"stream";
+				for (auto p : fs::directory_iterator(streamFolderPath)) {
+					if (fs::is_directory(p)) {
+						LONGLONG createTime = GetFileCreateTime(p);
+						folderList.emplace_back(p.path().wstring(), createTime);
+					}
 				}
-			}
-			std::sort(folderList.begin(), folderList.end(), 
-				[](const std::pair<std::wstring, LONGLONG>& n1, const std::pair<std::wstring, LONGLONG>& n2) {
-					return n1.second < n2.second;
-				});
-			while (Config::s_maxCacheFolderCount < folderList.size()) {
-				INFO_LOG << L"キャッシュフォルダを削除しました : " << folderList.front().first;
-				fs::remove_all(folderList.front().first);
-				folderList.erase(folderList.begin());				
+				std::sort(folderList.begin(), folderList.end(),
+					[](const std::pair<std::wstring, LONGLONG>& n1, const std::pair<std::wstring, LONGLONG>& n2) {
+						return n1.second < n2.second;
+					});
+				while (Config::s_maxCacheFolderCount < folderList.size()) {
+					INFO_LOG << L"キャッシュフォルダを削除しました : " << folderList.front().first;
+					fs::remove_all(folderList.front().first);
+					folderList.erase(folderList.begin());
+				}
 			}
 		} catch (std::exception& e) {
 			ERROR_LOG << L"Clear Cache failed: " << UTF16fromShiftJIS(e.what());
@@ -690,6 +700,86 @@ namespace {
 		SendJSON200OK(jsonResponse.dump(), yield, s);
 	}
 
+	std::string GetRealPath(const std::string& path)
+	{
+		std::string realPath;
+		auto queryPos = path.find('?');
+		if (queryPos != std::string::npos) {
+			realPath = path.substr(0, queryPos);
+		} else {
+			realPath = path;
+		}
+		return realPath;
+	}
+
+	bool isCookiePasswordMatch(const std::string& httpHeader)
+	{
+		std::regex rxCookie("Cookie:.*password=([a-zA-Z0-9_-]+)", std::regex_constants::icase);
+		std::smatch resultCookie;
+		if (!std::regex_search(httpHeader, resultCookie, rxCookie)) {
+			return false;	// Cookie が見つからない
+		}
+
+		std::string password = resultCookie[1].str();
+		if (Config::s_password == password) {
+			return true;	// パスワードが一致した！
+		} else {
+			return false;	// パスワードが異なる...
+		}
+
+	}
+
+	void RedirectURL(const std::string& location, asio::yield_context& yield, tcp::socket& s)
+	{
+		INFO_LOG << L"RedirectURL: " << location;
+		std::stringstream	ss;
+		ss << "HTTP/1.1 307 Temporary Redirect\r\n"
+			<< "location: " << location << "\r\n"
+			<< "Connection: " << "close" << "\r\n"
+			<< "\r\n";
+		std::string header = ss.str();
+		boost::system::error_code ec;
+		asio::async_write(s, asio::buffer(header), yield[ec]);
+		if (ec) {
+			ERROR_LOG << L"SendFile200OK - async_write failed: " << UTF16fromShiftJIS(ec.message());
+			return;
+		}
+	}
+
+	bool AuthorizeProcess(const std::string& path, const std::string& httpHeader, asio::yield_context& yield, tcp::socket& s)
+	{
+		std::string realPath = GetRealPath(path);
+		if (isCookiePasswordMatch(httpHeader)) {
+			if (realPath == "/login.html") {
+				// ログイン成功処理 ?path=<Jump先> へ飛ばす
+				std::string jumpPath = "/";
+				std::regex rx(R"(path=(.*))");
+				std::smatch result;
+				if (std::regex_search(path, result, rx)) {
+					jumpPath = result[1].str();
+				}
+				RedirectURL(jumpPath, yield, s);
+				return true;
+			} else {
+				return false;	// ログイン済み 後に処理を渡す
+			}
+		} else {
+			if (realPath != "/login.html" && realPath != "/login.js") {
+				// ログインしていないので、ログインページへ飛ばす
+				std::string location = "/login.html?path=" + path;
+				RedirectURL(location, yield, s);
+				return true;
+			} else {
+				// /login.html or /login.js - ログインページを返す
+				static const fs::path htmlFolderPath = GetExeDirectory() / L"html";
+				auto indexPath = htmlFolderPath / realPath.substr(1);
+				SendFile200OK(indexPath, yield, s);
+				return true;
+			}
+		}
+	}
+
+
 }	// namespace 
 
 std::shared_ptr<HttpServer> HttpServer::RunHttpServer()
@@ -730,7 +820,15 @@ void connection_rountine(asio::yield_context& yield, tcp::socket s)
 			if (std::regex_search(str, result, rx)) {
 				std::string path = result[1].str();
 				INFO_LOG << L"GET " << ConvertUTF16fromUTF8(URLDecode(path));
-				if (path == "/") {
+
+				// ====================================================
+				// パスワード確認
+				if (AuthorizeProcess(path, str, yield, s)) {
+					break;
+				}
+
+				std::string realPath = GetRealPath(path);
+				if (realPath == "/") {
 					auto indexPath = htmlFolderPath / "index.html";
 					SendFile200OK(indexPath, yield, s);
 					break;
@@ -823,7 +921,7 @@ void connection_rountine(asio::yield_context& yield, tcp::socket s)
 
 				// =====================================================
 				// htmlフォルダ以下の その他ファイルへのリクエスト
-				auto actualPath = htmlFolderPath / path.substr(1);
+				auto actualPath = htmlFolderPath / realPath.substr(1);
 				if (fs::is_regular_file(actualPath)) {
 					SendFile200OK(actualPath, yield, s);
 					break;

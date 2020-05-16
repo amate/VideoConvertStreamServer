@@ -17,6 +17,7 @@ public:
 	BEGIN_DDX_MAP(ConfigDlg)
 		DDX_INT_RANGE(IDC_EDIT_HTTPSERVERPORT, m_httpServerPort, 1024, 65535)
 		DDX_TEXT(IDC_EDIT_ROOTFOLDER, m_rootFolder)
+		DDX_TEXT(IDC_EDIT_PASSWORD, m_password)
 		DDX_TEXT(IDC_EDIT_MEDIAEXTLIST, m_mediaExtList)
 		DDX_TEXT(IDC_EDIT_DIRECTPLAYMEDIAEXTLIST, m_directPlayMediaExtList)
 		DDX_INT_RANGE(IDC_EDIT_MAXCACHEFOLDERCOUNT, m_maxCacheFolderCount, 2, INT_MAX)
@@ -58,6 +59,7 @@ public:
 private:
 	int		m_httpServerPort;
 	CString	m_rootFolder;
+	CString m_password;
 	CString m_mediaExtList;
 	CString m_directPlayMediaExtList;
 	int		m_maxCacheFolderCount;

@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "Config.h"
 #include <fstream>
+#include <random>
 
 #include <boost\format.hpp>
 
@@ -15,6 +16,7 @@ using namespace CodeConvert;
 
 
 int			Config::s_httpServerPort = 7896;
+std::string Config::s_password;
 std::wstring Config::s_rootFolder;
 std::vector<std::wstring> Config::s_mediaExtList = {
 	L"ts", L"mp4", L"mkv", L"webm", L"mpeg", L"avi", L"flv", L"wmv", L"asf", L"mov",
@@ -46,6 +48,16 @@ void Config::LoadConfig()
 	auto& configRoot = jsonConfig["Config"];
 
 	s_httpServerPort = configRoot.value<int>("HttpServerPort", s_httpServerPort);
+	s_password = configRoot.value<std::string>("Password", "");
+	if (s_password.empty()) {
+		enum { kMaxGeneratePasswordLength = 16 };
+		char characterPool[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYG0123456789_-";
+		std::random_device rand;
+		std::uniform_int_distribution<> dist(0, std::size(characterPool) - 2);
+		for (int i = 0; i < kMaxGeneratePasswordLength; ++i) {
+			s_password += characterPool[dist(rand)];
+		}
+	}
 	s_rootFolder = ConvertUTF16fromUTF8(configRoot.value<std::string>("RootFolder", ""));
 
 	auto& jsonMediaExtList = configRoot["MediaExtList"];
@@ -107,6 +119,7 @@ void Config::SaveConfig()
 	auto& configRoot = jsonConfig["Config"];
 
 	configRoot["HttpServerPort"] = s_httpServerPort;
+	configRoot["Password"] = s_password;
 	configRoot["RootFolder"] = ConvertUTF8fromUTF16(s_rootFolder);
 
 	configRoot["MediaExtList"] = json::array();

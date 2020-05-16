@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "ConfigDlg.h"
+#include <regex>
 #include <atldlgs.h>
 #include <boost\filesystem.hpp>
 #include <boost\algorithm\string.hpp>
+
+#include "Utility\CodeConvert.h"
 
 namespace fs = boost::filesystem;
 
@@ -12,6 +15,7 @@ LRESULT ConfigDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPara
 	CenterWindow(GetParent());
 
 	m_httpServerPort = Config::s_httpServerPort;
+	m_password = Config::s_password.c_str();
 	m_rootFolder = Config::s_rootFolder.c_str();
 
 	for (auto& mediaExt : Config::s_mediaExtList) {
@@ -60,8 +64,18 @@ LRESULT ConfigDlg::OnOk(WORD, WORD wID, HWND, BOOL&)
 		return 0;
 	}
 
+	{
+		std::wregex rx(L"[a-zA-Z0-9_-]+");
+		if (!std::regex_match((LPCWSTR)m_password, rx)) {
+			MessageBox(L"パスワードは英数字か '_' '-' のみ使用できます", L"エラー");
+			return 0;
+		}
+	}
+
 	Config::s_httpServerPort = m_httpServerPort;
+	Config::s_password = CodeConvert::ConvertUTF8fromUTF16((LPCWSTR)m_password);
 	Config::s_rootFolder = (LPCWSTR)m_rootFolder;
+
 
 	Config::s_mediaExtList.clear();
 	boost::split(Config::s_mediaExtList, (LPCWSTR)m_mediaExtList, boost::is_any_of(L","), boost::algorithm::token_compress_on);
