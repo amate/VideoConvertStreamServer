@@ -237,7 +237,7 @@ void UpdateRequestCount(bool increment)
         --g_activeRequestCount;
     }
 	CString text;
-	text.Format(L"アクティブなリクエスト数: %02d", g_activeRequestCount);
+	text.Format(L"アクティブなリクエスト数: %02d", g_activeRequestCount.load());
 
 	CWindow edit = g_hwndMainDlg.GetDlgItem(IDC_STATIC_ACTIVEREQUEST);
 	edit.SetWindowTextW(text);
@@ -251,7 +251,7 @@ void UpdateVideoConvertCount(bool increment)
         --g_videoConvertCount;
     }
 	CString text;
-	text.Format(L"動画変換処理中: %02d", g_videoConvertCount);
+	text.Format(L"動画変換処理中: %02d", g_videoConvertCount.load());
 
 	CWindow edit = g_hwndMainDlg.GetDlgItem(IDC_STATIC_VIDEOCONVERT);
 	edit.SetWindowTextW(text);	
@@ -259,7 +259,7 @@ void UpdateVideoConvertCount(bool increment)
 
 int		CurrentVideoConvertCount()
 {
-    return g_videoConvertCount;
+    return g_videoConvertCount.load();
 }
 
 LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)

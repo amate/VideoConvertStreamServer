@@ -1,0 +1,43 @@
+{
+    "Config": {
+        "DefaultSortOrder": "sort=name&order=asc",
+        "DirectPlayMediaExtList": [
+            "mp4",
+            "webm"
+        ],
+        "HttpServerPort": 7896,
+        "MaxCacheFolderCount": 2,
+        "MediaExtList": [
+            "ts",
+            "mp4",
+            "mkv",
+            "webm",
+            "mpeg",
+            "avi",
+            "flv",
+            "wmv",
+            "asf",
+            "mov"
+        ],
+        "Password": "",
+        "RootFolder": "",
+        "VideoConvertEngine": 0,
+        "VideoConvertEngine0": {
+            "CommandLine": "",
+            "DefaultCommandLine": " -i \"<input>\" -map 0:v -map 0:a \\n-c:v libopenh264 -b 5000k -g 30 <DeinterlaceParam> \\n-c:a aac -b:a 192k -f hls -hls_time 5 -hls_list_size 0 -hls_segment_filename \"<segmentFolder>\\segment_%08d.ts\" \"<segmentFolder>\\a.m3u8\"",
+            "DeinterlaceParam": " -vf yadif"
+        },
+        "VideoConvertEngine1": {
+            "CommandLine": "",
+            "DefaultCommandLine": " -i \"<input>\" -map 0:v -map 0:a \\n-c:v libx264 -preset veryfast -crf 23  -keyint_min 30 -g 30  \\n-c:a aac -b:a 192k \\n-f hls -hls_time 5 -hls_list_size 0 -hls_segment_filename \"<segmentFolder>\\segment_%08d.ts\" <DeinterlaceParam> \"<segmentFolder>\\a.m3u8\"",
+            "DeinterlaceParam": " -vf yadif",
+            "EnginePath": ""
+        },
+        "VideoConvertEngine2": {
+            "CommandLine": "",
+            "DefaultCommandLine": " --avhw -i \"<input>\" -o \"<segmentFolder>\\a.m3u8\" \\n--cqp 20:23:25 --gop-len 30 \\n--audio-codec aac --audio-bitrate 192 --avsync forcecfr\\n-f hls -m hls_time:5 -m hls_list_size:0 -m hls_segment_filename:\"<segmentFolder>\\segment_%08d.ts\" <DeinterlaceParam> ",
+            "DeinterlaceParam": " --interlace tff --vpp-deinterlace normal ",
+            "EnginePath": ""
+        }
+    }
+}

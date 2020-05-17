@@ -38,6 +38,7 @@ namespace {
 		{".html", "text/html"},
 		{".js", "text/javascript"},
 		{".css", "text/css"},
+		{".woff2", "font/woff2"},
 		{".txt", "text/plain"},
 		{".log", "text/plain"},
 
@@ -109,7 +110,11 @@ namespace {
 	bool	isMediaFile(const fs::path& filePath)
 	{
 		if (fs::is_regular_file(filePath)) {
-			auto ext = filePath.extension().wstring().substr(1);
+			auto ext = filePath.extension().wstring();
+			if (ext.empty()) {
+				return false;
+			}
+			ext = ext.substr(1);
 			boost::to_lower(ext);
 			for (const auto& mediaExt : Config::s_mediaExtList) {
 				if (ext == mediaExt) {
@@ -122,7 +127,11 @@ namespace {
 
 	bool	isDirectPlayFile(const fs::path& filePath)
 	{
-		auto ext = filePath.extension().wstring().substr(1);
+		auto ext = filePath.extension().wstring();
+		if (ext.empty()) {
+			return false;
+		}
+		ext = ext.substr(1);
 		boost::to_lower(ext);
 		for (const auto& mediaExt : Config::s_directPlayMediaExtList) {
 			if (ext == mediaExt) {
@@ -536,7 +545,7 @@ namespace {
 				{"name", ConvertUTF8fromUTF16(fileItem.name)},
 				{"isFolder", fileItem.isFolder},
 				{"FileSize", ConvertUTF8fromUTF16(fileItem.fileSize)},
-				});
+			});
 		}
 		json jsonFolder;
 		jsonFolder["Status"] = "ok";
@@ -546,6 +555,7 @@ namespace {
 
 	void PrepareHLSAPI(const std::wstring& mediaPath, asio::yield_context& yield, tcp::socket& s)
 	{
+		// 再生履歴更新
 		g_playHistory.erase(std::remove(g_playHistory.begin(), g_playHistory.end(), mediaPath), g_playHistory.end());
 		g_playHistory.emplace_front(mediaPath);
 
@@ -585,6 +595,13 @@ namespace {
 
 		const fs::path rootFolder = Config::s_rootFolder;//LR"(G:\Videos)";
 		const fs::path actualMediaPath = (rootFolder / mediaPath).make_preferred();
+		if (!fs::is_regular_file(actualMediaPath)) {
+			json jsonResponse;
+			jsonResponse["Status"] = "failed";
+			jsonResponse["Message"] = "file not found";
+			SendJSON200OK(jsonResponse.dump(), yield, s);
+			return;
+		}
 
 		// 作業フォルダ作成
 		const fs::path segmentFolderPath = BuildWokringFolderPath(actualMediaPath);
@@ -602,6 +619,7 @@ namespace {
 
 				json jsonResponse;
 				jsonResponse["Status"] = "failed";
+				jsonResponse["Message"] = "enginePath not exists";
 				SendJSON200OK(jsonResponse.dump(), yield, s);
 				return;
 			} else {
@@ -621,7 +639,12 @@ namespace {
 					++retryCount;
 					if (kMaxRetryCount < retryCount) {
 						ERROR_LOG << L"エンコードに失敗？ 'a.m3u8' が生成されていません";
-						break;	// failed
+
+						json jsonResponse;
+						jsonResponse["Status"] = "failed";
+						jsonResponse["Message"] = "encode failed";
+						SendJSON200OK(jsonResponse.dump(), yield, s);
+						return;	// failed
 					}
 					::Sleep(1000);
 				}
@@ -636,10 +659,29 @@ namespace {
 		SendJSON200OK(jsonResponse.dump(), yield, s);		
 	}
 
+	void Send404NotFound(asio::yield_context& yield, tcp::socket& s)
+	{
+		std::stringstream	ss;
+		ss << "HTTP/1.1 404 Not Found\r\n"
+			<< "Connection: " << "close" << "\r\n"
+			<< "\r\n";
+		std::string header = ss.str();
+		boost::system::error_code ec;
+		asio::async_write(s, asio::buffer(header), yield[ec]);
+		if (ec) {
+			ERROR_LOG << L"Send404NotFound - async_write failed: " << UTF16fromShiftJIS(ec.message());
+			return;
+		}
+	}
+
 	void RawLoadAPI(const std::wstring& mediaPath, boost::optional<std::pair<LONGLONG, LONGLONG>> optRange, asio::yield_context& yield, tcp::socket& s)
 	{
 		const fs::path rootFolder = Config::s_rootFolder;//LR"(G:\Videos)";
 		const fs::path actualMediaPath = rootFolder / mediaPath;
+		if (!fs::is_regular_file(actualMediaPath)) {
+			Send404NotFound(yield, s);
+			return;
+		}
 		if (optRange) {
 			SendRangeFile206PertialContent(actualMediaPath, optRange.get(), yield, s);
 		} else {
@@ -700,6 +742,13 @@ namespace {
 		SendJSON200OK(jsonResponse.dump(), yield, s);
 	}
 
+	void DefaultSortOrderAPI(asio::yield_context& yield, tcp::socket& s)
+	{
+		json jsonResponse;
+		jsonResponse["DefaultSortOrder"] = Config::s_defaultSortOrder;
+		SendJSON200OK(jsonResponse.dump(), yield, s);
+	}
+
 	std::string GetRealPath(const std::string& path)
 	{
 		std::string realPath;
@@ -748,6 +797,10 @@ namespace {
 
 	bool AuthorizeProcess(const std::string& path, const std::string& httpHeader, asio::yield_context& yield, tcp::socket& s)
 	{
+		if (path.substr(0, 5) == "/CDN/") {
+			return false;
+		}
+
 		std::string realPath = GetRealPath(path);
 		if (isCookiePasswordMatch(httpHeader)) {
 			if (realPath == "/login.html") {
@@ -798,6 +851,7 @@ void connection_rountine(asio::yield_context& yield, tcp::socket s)
 {
 	ATLTRACE("enter connection_rountine\n");
 	UpdateRequestCount(true);
+	::SetThreadExecutionState(ES_SYSTEM_REQUIRED);
 
 	static const fs::path htmlFolderPath = GetExeDirectory() / L"html";
 
@@ -916,6 +970,9 @@ void connection_rountine(asio::yield_context& yield, tcp::socket s)
 					break;
 				} else if (path == "/PrevSleepAPI") {
 					PrevSleepAPI(yield, s);
+					break;
+				} else if (path == "/DefaultSortOrderAPI") {
+					DefaultSortOrderAPI(yield, s);
 					break;
 				}
 

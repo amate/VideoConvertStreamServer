@@ -25,6 +25,17 @@ function PopupToast(leftPos, topPos, toastBody)
 	}, delay);
 }
 
+$.getJSON("/DefaultSortOrderAPI")
+.done(function(json){
+	console.log('DefaultSortOrder: ' + json.DefaultSortOrder)
+	
+	json.DefaultSortOrder;
+	$('#RootButton').attr('href', '/root/?' + json.DefaultSortOrder)
+})
+.fail(function(jqXHR, textStatus, errorThrown) {
+	console.error("getJSON fail: " + textStatus);
+});
+
 function OperateVolumeAPI(event)
 {
 	operation = event.data.operation;

@@ -22,6 +22,7 @@ public:
 		DDX_TEXT(IDC_EDIT_DIRECTPLAYMEDIAEXTLIST, m_directPlayMediaExtList)
 		DDX_INT_RANGE(IDC_EDIT_MAXCACHEFOLDERCOUNT, m_maxCacheFolderCount, 2, INT_MAX)
 		DDX_COMBO_INDEX(IDC_COMBO_CONVERTENGINE, m_videoConvertEngine)
+		DDX_COMBO_INDEX(IDC_COMBO_SORTORDER, m_defaultSortOrder)
 
 		DDX_TEXT(IDC_EDIT_BUILTIN_FFMPEG_COMMANDLINE, m_arrVCInfo[Config::kBuiltinFFmpeg].commandLine)
 
@@ -64,6 +65,7 @@ private:
 	CString m_directPlayMediaExtList;
 	int		m_maxCacheFolderCount;
 	int		m_videoConvertEngine;
+	int		m_defaultSortOrder;
 
 	struct VCInfo {
 		CString enginePath;

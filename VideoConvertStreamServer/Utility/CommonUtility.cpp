@@ -37,12 +37,17 @@ DWORD	StartProcess(const fs::path& exePath, const std::wstring& commandLine)
 
 	STARTUPINFO startUpInfo = { sizeof(STARTUPINFO) };
 	startUpInfo.dwFlags = STARTF_USESHOWWINDOW;
+#ifdef _DEBUG
 	startUpInfo.wShowWindow = SW_NORMAL;
+#else
+	startUpInfo.wShowWindow = SW_HIDE;//SW_NORMAL;
+#endif
 	PROCESS_INFORMATION processInfo = {};
 	SECURITY_ATTRIBUTES securityAttributes = { sizeof(SECURITY_ATTRIBUTES) };
 	BOOL bRet = ::CreateProcess(exePath.native().c_str(), (LPWSTR)commandLine.data(),
 		nullptr, nullptr, FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &startUpInfo, &processInfo);
 	if (bRet == 0) {
+		ATLASSERT(FALSE);
 		THROWEXCEPTION(L"StartProcess");
 	}
 	//ATLASSERT(bRet);

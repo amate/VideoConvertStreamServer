@@ -15,24 +15,6 @@ using nlohmann::json;
 using namespace CodeConvert;
 
 
-int			Config::s_httpServerPort = 7896;
-std::string Config::s_password;
-std::wstring Config::s_rootFolder;
-std::vector<std::wstring> Config::s_mediaExtList = {
-	L"ts", L"mp4", L"mkv", L"webm", L"mpeg", L"avi", L"flv", L"wmv", L"asf", L"mov",
-};
-std::vector<std::wstring> Config::s_directPlayMediaExtList = {
-	L"mp4", L"webm"
-};
-
-int			Config::s_maxCacheFolderCount = 2;
-
-std::array<std::wstring, Config::kMaxEngineNum> Config::s_videoConvertEngineName = {
-	L"“à‘  FFmpeg", L"ŠO•” FFmpeg", L"NVEncC",
-};
-int			 Config::s_videoConvertEngine = Config::kBuiltinFFmpeg;
-std::array<Config::VideoConvertEngineInfo, Config::kMaxEngineNum> Config::s_arrVideoConvertEngineInfo;
-
 /////////////////////////////////////////////////////////////////
 
 void Config::LoadConfig()
@@ -53,7 +35,7 @@ void Config::LoadConfig()
 		enum { kMaxGeneratePasswordLength = 16 };
 		char characterPool[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYG0123456789_-";
 		std::random_device rand;
-		std::uniform_int_distribution<> dist(0, std::size(characterPool) - 2);
+		std::uniform_int_distribution<> dist(0, static_cast<int>(std::size(characterPool) - 2));
 		for (int i = 0; i < kMaxGeneratePasswordLength; ++i) {
 			s_password += characterPool[dist(rand)];
 		}
@@ -81,6 +63,8 @@ void Config::LoadConfig()
 	}
 	s_videoConvertEngine = configRoot.value<int>("VideoConvertEngine", s_videoConvertEngine);
 
+	s_defaultSortOrder = configRoot.value<std::string>("DefaultSortOrder", s_defaultSortOrder);
+
 	for (int i = 0; i < kMaxEngineNum; ++i) {
 		std::string name = (boost::format("VideoConvertEngine%1%") %  i).str();
 		auto& jsonVCE = configRoot[name];
@@ -96,10 +80,7 @@ void Config::LoadConfig()
 			if (VCEInfo.commandLine.empty()) {
 				VCEInfo.commandLine = VCEInfo.defaultCommandLine;
 			}
-			VCEInfo.deinterlaceParam = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("DeinterlaceParam", "<default>"));
-			if (VCEInfo.deinterlaceParam == L"<default>") {
-				VCEInfo.deinterlaceParam = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("DefaultDeinterlaceParam", ""));
-			}
+			VCEInfo.deinterlaceParam = ConvertUTF16fromUTF8(jsonVCE.value<std::string>("DeinterlaceParam", ""));
 		}
 	}
 }
@@ -144,8 +125,9 @@ void Config::SaveConfig()
 			jsonVCE["EnginePath"] = ConvertUTF8fromUTF16(VCEInfo.enginePath);
 		}
 		jsonVCE["CommandLine"] = ConvertUTF8fromUTF16(VCEInfo.commandLine);
-		jsonVCE["DeinterlaceParam"] = ConvertUTF8fromUTF16(VCEInfo.deinterlaceParam);
 	}
+
+	configRoot["DefaultSortOrder"] = s_defaultSortOrder;
 
 	std::ofstream fsw(configPath.c_str(), std::ios::out | std::ios::binary);
 	fsw << std::setw(4) <<  jsonConfig;

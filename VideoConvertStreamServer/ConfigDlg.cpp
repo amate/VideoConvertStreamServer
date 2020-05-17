@@ -46,6 +46,14 @@ LRESULT ConfigDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lPara
 		cmbVEC.AddString(Config::s_videoConvertEngineName[i].c_str());	
 	}
 
+	CComboBox cmbSortOrder = GetDlgItem(IDC_COMBO_SORTORDER);
+	for (const auto& nameOrderPair : Config::kNameSortOrderPair) {
+		int addSel = cmbSortOrder.AddString(CString(nameOrderPair.first.c_str()));
+		if (nameOrderPair.second == Config::s_defaultSortOrder) {
+			m_defaultSortOrder = addSel;
+		}
+	}
+
 	DoDataExchange(DDX_LOAD);	// variables -> Dialog
 	return TRUE;
 }
@@ -97,6 +105,8 @@ LRESULT ConfigDlg::OnOk(WORD, WORD wID, HWND, BOOL&)
 
 		VCEInfo.deinterlaceParam = m_arrVCInfo[i].deinterlaceParam;
 	}
+	Config::s_defaultSortOrder = Config::kNameSortOrderPair[m_defaultSortOrder].second;
+
 	Config::SaveConfig();
 
 	EndDialog(wID);

@@ -47,7 +47,8 @@ var QueryPrepareHLS = function()
     .done(function(json){
         var video = document.getElementById('video');
         if (json.Status != "ok") {
-            alert('エラーが発生しました');
+            $('#ErrorAlart').text(json.Message);
+            $('#ErrorAlart').show();
             return ;
         }
         if (json.DirectPlay) {

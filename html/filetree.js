@@ -20,8 +20,8 @@ $(document).ready(function(){
 });
 
 // ソート設定
-let sort;
-let order;
+let sort = 'name';
+let order = 'asc';
 
 const kSortOrderMap = {
     "?sort=name&order=asc"  : "Name (A - Z)",
@@ -29,9 +29,9 @@ const kSortOrderMap = {
     "?sort=date&order=asc"  : "Date (New - Old)",
     "?sort=date&order=desc" : "Date (Old - New)",
 }
-if (location.search.length > 0) {
+if (kSortOrderMap[location.search] != undefined) {
     $('#DropDownSort').text(kSortOrderMap[location.search]);
-} else {
+} else {    
     $('#DropDownSort').text("Name (A - Z)");
 }
 
